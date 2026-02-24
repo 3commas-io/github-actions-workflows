@@ -36,7 +36,7 @@ on:
 
 jobs:
   prepare:
-    name: Prepare environment
+    name: Environment
     runs-on: ${{ startsWith(github.ref, 'refs/tags/v') && 'sb-production-huge-arm-arc' || 'sb-staging-huge-arm-arc' }}
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
     outputs:
@@ -77,7 +77,7 @@ jobs:
             echo "Registry: nexus-docker-hosted.stg.3csb.com"
           fi
 
-      - name: Login to Nexus registry
+      - name: Registry
         if: inputs.build_dependencies
         uses: docker/login-action@v3
         with:
@@ -85,7 +85,7 @@ jobs:
           username: ${{ secrets.NEXUS_USERNAME }}
           password: ${{ secrets.NEXUS_PASSWORD }}
 
-      - name: Set up Docker Buildx
+      - name: Docker Buildx
         if: inputs.build_dependencies
         uses: docker/setup-buildx-action@v3
         with:
@@ -97,7 +97,7 @@ jobs:
             env.https_proxy=http://${{ steps.extract-version.outputs.proxy_url }}
             "env.no_proxy=localhost,127.0.0.1,169.254.169.254,.3csb.com"
 
-      - name: Extract metadata for dependencies
+      - name: Metadata for dependencies
         if: inputs.build_dependencies
         id: meta-deps
         uses: docker/metadata-action@v5
@@ -107,7 +107,7 @@ jobs:
             type=raw,value=${{ steps.extract-version.outputs.version }}
             type=raw,value=latest
 
-      - name: Build and push dependencies image
+      - name: Dependencies image
         if: inputs.build_dependencies
         uses: docker/build-push-action@v5
         with:
@@ -124,7 +124,7 @@ jobs:
             https_proxy=http://${{ steps.extract-version.outputs.proxy_url }}
             no_proxy=localhost,127.0.0.1,169.254.169.254,.3csb.com
 
-      - name: Set image tag output
+      - name: Tag output
         if: inputs.build_dependencies
         id: set-image-tag
         run: |

@@ -54,7 +54,7 @@ on:
 
 jobs:
   build:
-    name: Build and push ${{ inputs.service_name }}
+    name: ${{ inputs.service_name }}
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code

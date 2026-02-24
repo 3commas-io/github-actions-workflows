@@ -57,7 +57,7 @@ on:
 jobs:
   vet:
     if: inputs.run_vet
-    name: Go Vet
+    name: Vet
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -81,7 +81,7 @@ jobs:
 
   gosec:
     if: inputs.run_gosec
-    name: Security Scan (gosec)
+    name: Gosec
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -127,7 +127,7 @@ jobs:
 
   lint:
     if: inputs.run_lint
-    name: Lint (golangci-lint)
+    name: Lint
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -151,4 +151,3 @@ jobs:
         with:
           version: latest
           args: -v -c ${{ inputs.lint_config }} ${{ inputs.lint_build_tags && format('--build-tags={0}', inputs.lint_build_tags) || '' }} --timeout ${{ inputs.lint_timeout }}
-
