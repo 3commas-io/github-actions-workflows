@@ -1,0 +1,130 @@
+name: Build and Push Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Nexus registry URL'
+        required: true
+        type: string
+      image_repository:
+        description: 'Base image repository path (e.g., 3commas/go-helloworld)'
+        required: true
+        type: string
+      service_name:
+        description: 'Service name (becomes part of image path)'
+        required: true
+        type: string
+      version:
+        description: 'Version tag'
+        required: true
+        type: string
+      proxy_url:
+        description: 'Proxy URL'
+        required: true
+        type: string
+      docker_mirror:
+        description: 'Docker mirror URL'
+        required: true
+        type: string
+      dockerfile:
+        description: 'Path to Dockerfile'
+        required: true
+        type: string
+      runner:
+        description: 'Runner to use'
+        required: false
+        type: string
+        default: 'sb-staging-arm-arc'
+      env_file:
+        description: 'Path to env file for build args'
+        required: false
+        type: string
+        default: ''
+      additional_build_args:
+        description: 'Extra build args (multiline string)'
+        required: false
+        type: string
+        default: ''
+      deps_image_tag:
+        description: 'Dependencies image tag to use as build arg'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  build:
+    name: Build and push ${{ inputs.service_name }}
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Nexus registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.NEXUS_USERNAME }}
+          password: ${{ secrets.NEXUS_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["${{ inputs.docker_mirror }}"]
+          driver-opts: |
+            env.http_proxy=http://${{ inputs.proxy_url }}
+            env.https_proxy=http://${{ inputs.proxy_url }}
+            "env.no_proxy=localhost,127.0.0.1,169.254.169.254,.3csb.com"
+
+      - name: Load env file if provided
+        id: load-env
+        run: |
+          ENV_ARGS=""
+          if [ -n "${{ inputs.env_file }}" ] && [ -f "${{ inputs.env_file }}" ]; then
+            echo "Loading environment from ${{ inputs.env_file }}"
+            while IFS='=' read -r key value; do
+              # Skip empty lines and comments
+              if [ -n "$key" ] && [[ ! "$key" =~ ^# ]]; then
+                ENV_ARGS="${ENV_ARGS}${key}=${value}"$'\n'
+              fi
+            done < "${{ inputs.env_file }}"
+          fi
+          # Save to output
+          echo "build_args<<EOF" >> $GITHUB_OUTPUT
+          echo "$ENV_ARGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ inputs.registry }}/${{ inputs.image_repository }}/${{ inputs.service_name }}
+          tags: |
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            http_proxy=http://${{ inputs.proxy_url }}
+            https_proxy=http://${{ inputs.proxy_url }}
+            no_proxy=localhost,127.0.0.1,169.254.169.254,.3csb.com
+            IMAGE_TAG=${{ inputs.deps_image_tag }}
+            ${{ steps.load-env.outputs.build_args }}
+            ${{ inputs.additional_build_args }}
+
+      - name: Print image tags
+        run: |
+          echo "✅ Successfully built and pushed ${{ inputs.service_name }} image"
+          echo "${{ steps.meta.outputs.tags }}"
