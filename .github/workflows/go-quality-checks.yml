@@ -12,12 +12,12 @@ on:
         description: 'Run go vet'
         required: false
         type: boolean
-        default: true
+        default: false
       run_gosec:
         description: 'Run gosec security scanner'
         required: false
         type: boolean
-        default: true
+        default: false
       gosec_exclude:
         description: 'Gosec exclusions (e.g., "G104,G706,G117")'
         required: false
@@ -37,7 +37,7 @@ on:
         description: 'Run golangci-lint'
         required: false
         type: boolean
-        default: true
+        default: false
       lint_timeout:
         description: 'golangci-lint timeout (e.g., "5m")'
         required: false

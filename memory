@@ -53,3 +53,68 @@ lighthouse:
     - lhci autorun --collect.url=${URL} --upload.ignoreDuplicateBuildFailure || true
     - lhci autorun --collect.url=${URL} --upload.target='filesystem'
     - echo "You can visit this link to see results http://lighthouse.NEEDNEWDOMAIN.domain/"
+
+
+
+Yes, GitHub Actions does support using external caches including S3! There are a few approaches:
+
+  Option 1: Custom S3 Cache Action
+
+  You can use actions that support S3 as a cache backend:
+
+  - name: Cache Go modules in S3
+    uses: runs-on/cache@v4  # or tespkg/actions-cache@v1
+    with:
+      endpoint: s3.amazonaws.com
+      bucket: my-cache-bucket
+      key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      path: |
+        ~/go/pkg/mod
+        ~/.cache/go-build
+
+  Option 2: Use Buildkit Cache with S3
+
+  For Docker builds, we can use S3 for cache:
+
+  - name: Build with S3 cache
+    uses: docker/build-push-action@v5
+    with:
+      cache-from: type=s3,region=us-east-1,bucket=my-cache,name=myapp
+      cache-to: type=s3,region=us-east-1,bucket=my-cache,name=myapp,mode=max
+
+  Option 3: Use Your Own Nexus/Artifact Store
+
+  Since you already have Nexus, you could:
+  1. Pre-download modules to Nexus
+  2. Use GOPROXY to point to Nexus
+  3. Modules are served from your local Nexus (much faster)
+
+  This is actually what you're already set up for with:
+  env:
+    GOPROXY: 'https://goproxy.stg.3csb.com,direct'
+
+  Option 4: Self-hosted Runners with Persistent Cache
+
+  Your self-hosted runners (sb-staging-arm-arc, etc.) can have persistent local cache that survives between runs. This is the fastest option.
+
+  On the runner host:
+  # Cache persists on runner disk
+  export GOMODCACHE=/persistent/go-cache/pkg/mod
+  export GOCACHE=/persistent/go-cache/build
+
+  Recommendation for Your Setup
+
+  Given that you have:
+  - ✅ Nexus already set up
+  - ✅ Self-hosted runners
+  - ✅ GOPROXY configured
+
+  Best approach:
+  1. Use GOPROXY with Nexus (you're already doing this!)
+  2. Configure persistent cache on self-hosted runners
+  3. Optionally add S3 cache as a fallback
+
+  Would you like me to:
+  1. Create a setup that uses S3 cache for Go modules?
+  2. Or update workflows to better utilize your existing Nexus GOPROXY?
+  3. Or add configuration for persistent cache on self-hosted runners?
