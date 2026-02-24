@@ -1,0 +1,93 @@
+name: Go Test
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'Runner to use'
+        required: false
+        type: string
+        default: 'sb-staging-huge-arm-arc'
+      test_name:
+        description: 'Name for the test job (e.g., "Unit Tests", "Integration Tests")'
+        required: false
+        type: string
+        default: 'Tests'
+      test_args:
+        description: 'Arguments for go test (e.g., "./...", "./lib/storage/...", "./tests/system/...")'
+        required: false
+        type: string
+        default: './...'
+      test_tags:
+        description: 'Build tags for tests (e.g., "integration", "system")'
+        required: false
+        type: string
+        default: ''
+      test_timeout:
+        description: 'Test timeout (e.g., "5m", "10m")'
+        required: false
+        type: string
+        default: '5m'
+      use_proxy:
+        description: 'Use proxy for tests requiring external access'
+        required: false
+        type: boolean
+        default: false
+      proxy_url:
+        description: 'Proxy URL (e.g., "squid.stg.3csb.com:3128")'
+        required: false
+        type: string
+        default: 'squid.stg.3csb.com:3128'
+      timeout_minutes:
+        description: 'Job timeout in minutes'
+        required: false
+        type: number
+        default: 15
+      verbose:
+        description: 'Run tests with verbose output (-v flag)'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  test:
+    name: ${{ inputs.test_name }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: Run tests
+        env:
+          HTTP_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          HTTPS_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          NO_PROXY: ${{ inputs.use_proxy && 'localhost,127.0.0.1,169.254.169.254,.3csb.com' || '' }}
+        run: |
+          TEST_CMD="go test"
+
+          if [ "${{ inputs.verbose }}" = "true" ]; then
+            TEST_CMD="$TEST_CMD -v"
+          fi
+
+          if [ -n "${{ inputs.test_tags }}" ]; then
+            TEST_CMD="$TEST_CMD -tags=${{ inputs.test_tags }}"
+          fi
+
+          TEST_CMD="$TEST_CMD ${{ inputs.test_args }} -timeout ${{ inputs.test_timeout }}"
+
+          echo "Running: $TEST_CMD"
+          eval $TEST_CMD

@@ -1,0 +1,55 @@
+stages:
+  - prepare
+  - pre-check
+  - check
+  - post-check
+  - pre-test
+  - test
+  - post-test
+  - pre-build
+  - build
+  - post-build
+  - pre-qa-test
+  - qa-test
+  - post-qa-test
+  - pre-deploy
+  - deploy
+  - post-deploy
+  - pre-rollback
+  - rollback
+  - post-rollback
+
+kube:
+  build:
+  deploy:
+  destroy:
+  restart:
+  rollback:
+
+go:
+  go-mod-cache:
+    - go mod download
+  golangci-lint:
+    - golangci-lint run -v --timeout ${GOLANGCI_LINT_TIMEOUT}
+  test-coverage-mr:
+    - go test -coverpkg=./... -cover -v -coverprofile=coverage.txt ${GO_TEST_OPTS} ./... 2>&1 | tee report.txt
+    after_script:
+    - go-junit-report -set-exit-code < report.txt > report.xml
+    - gocover-cobertura < coverage.txt > coverage.xml
+    - go tool cover -func=coverage.txt
+  go-test:
+    - go test ${GO_TEST_OPTS} ./... 2>&1 | tee report.txt
+  reviewdog-mr:
+    - reviewdog -conf=/root/.reviewdog.yml -filter-mode=nofilter -tee -reporter=gitlab-mr-discussion -diff="git diff $CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+  vet:
+    - go vet ./...
+
+qa-acceptance:
+    - curl --silent --show-error --fail --insecure ${API_URL}
+    - touch .env.test.local
+    - ./vendor/bin/codecept run tests/acceptance -v ${CODECEPTION_FLAGS}
+
+lighthouse:
+    - lhci autorun --collect.url=${URL} --upload.ignoreDuplicateBuildFailure || true
+    - lhci autorun --collect.url=${URL} --upload.target='filesystem'
+    - echo "You can visit this link to see results http://lighthouse.NEEDNEWDOMAIN.domain/"
