@@ -1,0 +1,305 @@
+name: Go Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'Runner to use for all jobs'
+        required: false
+        type: string
+        default: 'sb-staging-huge-arm-arc'
+      run_vet:
+        description: 'Run go vet'
+        required: false
+        type: boolean
+        default: true
+      run_gosec:
+        description: 'Run gosec security scanner'
+        required: false
+        type: boolean
+        default: true
+      gosec_exclude:
+        description: 'Gosec exclusions (e.g., "G104,G706,G117")'
+        required: false
+        type: string
+        default: 'G117'
+      gosec_exclude_dirs:
+        description: 'Gosec directories to exclude (e.g., "_reference,apps/storage")'
+        required: false
+        type: string
+        default: '_reference'
+      gosec_concurrency:
+        description: 'Gosec concurrency level'
+        required: false
+        type: number
+        default: 4
+      run_lint:
+        description: 'Run golangci-lint'
+        required: false
+        type: boolean
+        default: true
+      lint_timeout:
+        description: 'golangci-lint timeout (e.g., "5m")'
+        required: false
+        type: string
+        default: '5m'
+      lint_build_tags:
+        description: 'Build tags for linter (e.g., "integration,system")'
+        required: false
+        type: string
+        default: ''
+      lint_config:
+        description: 'Path to golangci-lint config file'
+        required: false
+        type: string
+        default: '.golangci.yml'
+      run_unit_tests:
+        description: 'Run unit tests'
+        required: false
+        type: boolean
+        default: true
+      unit_test_timeout:
+        description: 'Unit test timeout (e.g., "5m")'
+        required: false
+        type: string
+        default: '5m'
+      unit_test_args:
+        description: 'Additional arguments for unit tests'
+        required: false
+        type: string
+        default: './...'
+      run_integration_tests:
+        description: 'Run integration tests'
+        required: false
+        type: boolean
+        default: false
+      integration_test_timeout:
+        description: 'Integration test timeout (e.g., "10m")'
+        required: false
+        type: string
+        default: '10m'
+      integration_test_args:
+        description: 'Test path/args for integration tests'
+        required: false
+        type: string
+        default: './...'
+      integration_test_tags:
+        description: 'Build tags for integration tests (e.g., "integration")'
+        required: false
+        type: string
+        default: 'integration'
+      run_system_tests:
+        description: 'Run system tests'
+        required: false
+        type: boolean
+        default: false
+      system_test_timeout:
+        description: 'System test timeout (e.g., "10m")'
+        required: false
+        type: string
+        default: '10m'
+      system_test_args:
+        description: 'Test path/args for system tests'
+        required: false
+        type: string
+        default: './tests/system/...'
+      system_test_tags:
+        description: 'Build tags for system tests (e.g., "system")'
+        required: false
+        type: string
+        default: 'system'
+      use_proxy:
+        description: 'Use proxy for tests that need external access'
+        required: false
+        type: boolean
+        default: false
+      proxy_url:
+        description: 'Proxy URL (e.g., "squid.stg.3csb.com:3128")'
+        required: false
+        type: string
+        default: 'squid.stg.3csb.com:3128'
+
+jobs:
+  vet:
+    if: inputs.run_vet
+    name: Go Vet
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: Run vet
+        run: go vet ./...
+
+  gosec:
+    if: inputs.run_gosec
+    name: Security Scan (gosec)
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          GOSEC_CMD="gosec"
+
+          if [ -n "${{ inputs.gosec_exclude }}" ]; then
+            GOSEC_CMD="$GOSEC_CMD -exclude=${{ inputs.gosec_exclude }}"
+          fi
+
+          if [ -n "${{ inputs.gosec_exclude_dirs }}" ]; then
+            IFS=',' read -ra DIRS <<< "${{ inputs.gosec_exclude_dirs }}"
+            for dir in "${DIRS[@]}"; do
+              GOSEC_CMD="$GOSEC_CMD -exclude-dir=${dir}"
+            done
+          fi
+
+          GOSEC_CMD="$GOSEC_CMD -concurrency ${{ inputs.gosec_concurrency }} ./..."
+
+          echo "Running: $GOSEC_CMD"
+          eval $GOSEC_CMD
+
+  lint:
+    if: inputs.run_lint
+    name: Lint (golangci-lint)
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: -v -c ${{ inputs.lint_config }} ${{ inputs.lint_build_tags && format('--build-tags={0}', inputs.lint_build_tags) || '' }} --timeout ${{ inputs.lint_timeout }}
+
+  unit-tests:
+    if: inputs.run_unit_tests
+    name: Unit Tests
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: Run unit tests
+        env:
+          HTTP_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          HTTPS_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          NO_PROXY: ${{ inputs.use_proxy && 'localhost,127.0.0.1,169.254.169.254,.3csb.com' || '' }}
+        run: go test -v ${{ inputs.unit_test_args }} -timeout ${{ inputs.unit_test_timeout }}
+
+  integration-tests:
+    if: inputs.run_integration_tests
+    name: Integration Tests
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: Run integration tests
+        env:
+          HTTP_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          HTTPS_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          NO_PROXY: ${{ inputs.use_proxy && 'localhost,127.0.0.1,169.254.169.254,.3csb.com' || '' }}
+        run: go test -v -tags=${{ inputs.integration_test_tags }} ${{ inputs.integration_test_args }} -timeout ${{ inputs.integration_test_timeout }}
+
+  system-tests:
+    if: inputs.run_system_tests
+    name: System Tests
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Configure private Go modules
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global url."https://${GH_TOKEN}@github.com/3commas-io/".insteadOf "https://github.com/3commas-io/"
+          go env -w GOPRIVATE=github.com/3commas-io/*
+
+      - name: Run system tests
+        env:
+          HTTP_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          HTTPS_PROXY: ${{ inputs.use_proxy && format('http://{0}', inputs.proxy_url) || '' }}
+          NO_PROXY: ${{ inputs.use_proxy && 'localhost,127.0.0.1,169.254.169.254,.3csb.com' || '' }}
+        run: go test -v -tags=${{ inputs.system_test_tags }} ${{ inputs.system_test_args }} -timeout ${{ inputs.system_test_timeout }}
