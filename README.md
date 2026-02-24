@@ -4,9 +4,74 @@ Reusable GitHub Actions workflows for 3commas projects. These workflows provide 
 
 ## Available Workflows
 
-### 1. go-quality-checks.yml
+### 1. go-test.yml
 
-Runs Go quality checks including vet, gosec, golangci-lint, unit tests, integration tests, and system tests.
+Runs Go tests with custom arguments. Can be called multiple times for different test types (unit, integration, system).
+
+**Inputs:**
+- `runner` (optional, default: `sb-staging-huge-arm-arc`): Runner to use
+- `test_name` (optional, default: `Tests`): Name for the test job (e.g., "Unit Tests", "Integration Tests")
+- `test_args` (optional, default: `./...`): Arguments for go test (e.g., `./lib/storage/...`, `./tests/system/...`)
+- `test_tags` (optional): Build tags for tests (e.g., `integration`, `system`)
+- `test_timeout` (optional, default: `5m`): Test timeout (e.g., `5m`, `10m`)
+- `use_proxy` (optional, default: `false`): Use proxy for tests requiring external access
+- `proxy_url` (optional, default: `squid.stg.3csb.com:3128`): Proxy URL
+- `timeout_minutes` (optional, default: `15`): Job timeout in minutes
+- `verbose` (optional, default: `true`): Run tests with verbose output (-v flag)
+
+**Secrets Required:**
+- `GH_TOKEN`: GitHub token for accessing private Go modules
+
+**Example (single test type):**
+```yaml
+jobs:
+  unit-tests:
+    uses: 3commas-io/github-actions-workflows/.github/workflows/go-test.yml@main
+    with:
+      test_name: 'Unit Tests'
+      test_args: './...'
+      test_timeout: '5m'
+    secrets: inherit
+```
+
+**Example (multiple test types like ECK):**
+```yaml
+jobs:
+  unit-tests:
+    uses: 3commas-io/github-actions-workflows/.github/workflows/go-test.yml@main
+    with:
+      test_name: 'Unit Tests'
+      test_args: './...'
+      test_timeout: '5m'
+      timeout_minutes: 10
+    secrets: inherit
+
+  integration-tests:
+    uses: 3commas-io/github-actions-workflows/.github/workflows/go-test.yml@main
+    with:
+      test_name: 'Integration Tests'
+      test_args: './lib/storage/keys/... ./apps/storage/... ./apps/consistency/...'
+      test_tags: 'integration'
+      test_timeout: '5m'
+      timeout_minutes: 10
+      use_proxy: true
+    secrets: inherit
+
+  system-tests:
+    uses: 3commas-io/github-actions-workflows/.github/workflows/go-test.yml@main
+    with:
+      test_name: 'System Tests'
+      test_args: './tests/system/...'
+      test_tags: 'system'
+      test_timeout: '10m'
+      timeout_minutes: 15
+      use_proxy: true
+    secrets: inherit
+```
+
+### 2. go-quality-checks.yml
+
+Runs Go quality checks including vet, gosec, and golangci-lint.
 
 **Inputs:**
 - `runner` (optional, default: `sb-staging-huge-arm-arc`): Runner to use for all jobs
@@ -19,52 +84,27 @@ Runs Go quality checks including vet, gosec, golangci-lint, unit tests, integrat
 - `lint_timeout` (optional, default: `5m`): golangci-lint timeout
 - `lint_build_tags` (optional): Build tags for linter (e.g., `integration,system`)
 - `lint_config` (optional, default: `.golangci.yml`): Path to golangci-lint config
-- `run_unit_tests` (optional, default: `true`): Run unit tests
-- `unit_test_timeout` (optional, default: `5m`): Unit test timeout
-- `unit_test_args` (optional, default: `./...`): Test path/args for unit tests
-- `run_integration_tests` (optional, default: `false`): Run integration tests
-- `integration_test_timeout` (optional, default: `10m`): Integration test timeout
-- `integration_test_args` (optional, default: `./...`): Test path/args
-- `integration_test_tags` (optional, default: `integration`): Build tags
-- `run_system_tests` (optional, default: `false`): Run system tests
-- `system_test_timeout` (optional, default: `10m`): System test timeout
-- `system_test_args` (optional, default: `./tests/system/...`): Test path/args
-- `system_test_tags` (optional, default: `system`): Build tags
-- `use_proxy` (optional, default: `false`): Use proxy for tests
-- `proxy_url` (optional, default: `squid.stg.3csb.com:3128`): Proxy URL
 
 **Secrets Required:**
 - `GH_TOKEN`: GitHub token for accessing private Go modules
 
-**Example (minimal):**
-```yaml
-jobs:
-  quality-checks:
-    uses: 3commas-io/github-actions-workflows/.github/workflows/go-quality-checks.yml@main
-    secrets: inherit
-```
-
-**Example (with all options):**
+**Example:**
 ```yaml
 jobs:
   quality-checks:
     uses: 3commas-io/github-actions-workflows/.github/workflows/go-quality-checks.yml@main
     with:
-      runner: 'sb-staging-huge-arm-arc'
+      runner: 'sb-staging-arm-arc'
       run_vet: true
       run_gosec: true
       gosec_exclude: 'G104,G706,G117'
       gosec_exclude_dirs: '_reference,apps/storage'
       run_lint: true
       lint_build_tags: 'integration,system'
-      run_unit_tests: true
-      run_integration_tests: true
-      run_system_tests: true
-      use_proxy: true
     secrets: inherit
 ```
 
-### 2. prepare-environment.yml
+### 3. prepare-environment.yml
 
 Extracts version information and determines the deployment environment (staging/production) based on git ref.
 
@@ -106,7 +146,7 @@ jobs:
     secrets: inherit
 ```
 
-### 3. build-push-image.yml
+### 4. build-push-image.yml
 
 Builds and pushes a Docker image to Nexus registry with consistent tagging.
 
