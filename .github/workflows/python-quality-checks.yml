@@ -1,0 +1,148 @@
+name: Python Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'Runner to use for all jobs'
+        required: false
+        type: string
+        default: 'sb-staging-arm-arc'
+      python_version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.12'
+      uv_version:
+        description: 'uv version to use'
+        required: false
+        type: string
+        default: 'latest'
+      run_lint:
+        description: 'Run ruff linter and formatter'
+        required: false
+        type: boolean
+        default: true
+      run_typecheck:
+        description: 'Run pyright type checker'
+        required: false
+        type: boolean
+        default: true
+      run_security:
+        description: 'Run bandit security scan'
+        required: false
+        type: boolean
+        default: true
+      security_continue_on_error:
+        description: 'Continue pipeline if security scan fails'
+        required: false
+        type: boolean
+        default: true
+      lint_path:
+        description: 'Path to lint (e.g., "src", ".")'
+        required: false
+        type: string
+        default: 'src'
+      typecheck_path:
+        description: 'Path to typecheck (e.g., "src", ".")'
+        required: false
+        type: string
+        default: 'src'
+      security_path:
+        description: 'Path for security scan (e.g., "src", ".")'
+        required: false
+        type: string
+        default: 'src'
+      custom_lint_script:
+        description: 'Optional custom lint script to run after ruff'
+        required: false
+        type: string
+        default: ''
+      install_nodejs:
+        description: 'Install Node.js (needed for pyright)'
+        required: false
+        type: boolean
+        default: false
+      nodejs_version:
+        description: 'Node.js version if needed'
+        required: false
+        type: string
+        default: '24'
+
+jobs:
+  lint:
+    if: inputs.run_lint
+    name: Lint
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ inputs.uv_version }}
+          enable-cache: true
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Ruff linter
+        run: uv run ruff check ${{ inputs.lint_path }}
+
+      - name: Run Ruff formatter check
+        run: uv run ruff format --check ${{ inputs.lint_path }}
+
+      - name: Run custom lint script
+        if: inputs.custom_lint_script != ''
+        run: ${{ inputs.custom_lint_script }}
+
+  typecheck:
+    if: inputs.run_typecheck
+    name: Type Check
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ inputs.uv_version }}
+          enable-cache: true
+          python-version: ${{ inputs.python_version }}
+
+      - name: Set up Node.js
+        if: inputs.install_nodejs
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.nodejs_version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Pyright
+        run: uv run pyright ${{ inputs.typecheck_path }}
+
+  security:
+    if: inputs.run_security
+    name: Security Scan (Bandit)
+    runs-on: ${{ inputs.runner }}
+    continue-on-error: ${{ inputs.security_continue_on_error }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ inputs.uv_version }}
+          enable-cache: true
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Bandit security scan
+        run: uv run bandit -r ${{ inputs.security_path }} -c pyproject.toml

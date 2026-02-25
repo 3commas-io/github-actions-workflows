@@ -1,0 +1,63 @@
+name: Python Test
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'Runner to use'
+        required: false
+        type: string
+        default: 'sb-staging-arm-arc'
+      python_version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.12'
+      uv_version:
+        description: 'uv version to use'
+        required: false
+        type: string
+        default: 'latest'
+      test_name:
+        description: 'Name for the test job (e.g., "Unit Tests", "Integration Tests")'
+        required: false
+        type: string
+        default: 'Tests'
+      test_path:
+        description: 'Path to test (e.g., "tests/unit", "tests/integration")'
+        required: true
+        type: string
+      test_args:
+        description: 'Additional pytest arguments (e.g., "-q --tb=short")'
+        required: false
+        type: string
+        default: '-q --tb=short'
+      timeout_minutes:
+        description: 'Timeout in minutes for the test job'
+        required: false
+        type: number
+        default: 10
+
+jobs:
+  test:
+    name: ${{ inputs.test_name }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ inputs.uv_version }}
+          enable-cache: true
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv run pytest ${{ inputs.test_path }} ${{ inputs.test_args }}
+        env:
+          PYTHONPATH: .
