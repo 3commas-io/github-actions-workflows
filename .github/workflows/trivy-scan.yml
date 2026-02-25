@@ -1,0 +1,76 @@
+name: Trivy Image Scan
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Container registry URL'
+        required: true
+        type: string
+      image_repository:
+        description: 'Image repository path (e.g., qp/agentic-backend)'
+        required: true
+        type: string
+      service_name:
+        description: 'Service name (e.g., main, api, web)'
+        required: true
+        type: string
+      image_tag:
+        description: 'Image tag to scan'
+        required: true
+        type: string
+      runner:
+        description: 'Runner to use'
+        required: false
+        type: string
+        default: 'sb-staging-arm-arc'
+      environment:
+        description: 'GitHub environment for secret access'
+        required: false
+        type: string
+        default: ''
+      severity:
+        description: 'Severity levels to check (e.g., CRITICAL,HIGH)'
+        required: false
+        type: string
+        default: 'CRITICAL,HIGH'
+      exit_code:
+        description: 'Exit code when vulnerabilities are found'
+        required: false
+        type: string
+        default: '1'
+      ignore_unfixed:
+        description: 'Ignore unfixed vulnerabilities'
+        required: false
+        type: boolean
+        default: true
+      continue_on_error:
+        description: 'Continue pipeline if scan fails'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  scan:
+    name: Trivy Scan
+    runs-on: ${{ inputs.runner }}
+    environment: ${{ inputs.environment }}
+    continue-on-error: ${{ inputs.continue_on_error }}
+    steps:
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.NEXUS_USERNAME }}
+          password: ${{ secrets.NEXUS_PASSWORD }}
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.34.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          image-ref: ${{ inputs.registry }}/${{ inputs.image_repository }}/${{ inputs.service_name }}:${{ inputs.image_tag }}
+          format: table
+          exit-code: ${{ inputs.exit_code }}
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: ${{ inputs.ignore_unfixed }}
