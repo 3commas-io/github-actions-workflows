@@ -72,7 +72,7 @@ on:
 jobs:
   lint:
     if: inputs.run_lint
-    name: Lint
+    name: 🧹 Lint
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -100,7 +100,7 @@ jobs:
 
   typecheck:
     if: inputs.run_typecheck
-    name: Type Check
+    name: 🎯 Type Check
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -127,7 +127,7 @@ jobs:
 
   security:
     if: inputs.run_security
-    name: Security Scan (Bandit)
+    name: 🔒 Security Scan (Bandit)
     runs-on: ${{ inputs.runner }}
     continue-on-error: ${{ inputs.security_continue_on_error }}
     steps:

@@ -51,7 +51,7 @@ on:
 
 jobs:
   test:
-    name: ${{ inputs.test_name }}
+    name: 🧪 ${{ inputs.test_name }}
     runs-on: ${{ inputs.runner }}
     timeout-minutes: ${{ inputs.timeout_minutes }}
     steps:

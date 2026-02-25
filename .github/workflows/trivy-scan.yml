@@ -52,7 +52,7 @@ on:
 
 jobs:
   scan:
-    name: Trivy Scan
+    name: 🔍 Trivy Scan
     runs-on: ${{ inputs.runner }}
     environment: ${{ inputs.environment }}
     continue-on-error: ${{ inputs.continue_on_error }}

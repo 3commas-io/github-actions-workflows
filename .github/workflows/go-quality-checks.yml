@@ -57,7 +57,7 @@ on:
 jobs:
   vet:
     if: inputs.run_vet
-    name: Vet
+    name: 🔧 Vet
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -81,7 +81,7 @@ jobs:
 
   gosec:
     if: inputs.run_gosec
-    name: Gosec
+    name: 🔒 Gosec
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code
@@ -127,7 +127,7 @@ jobs:
 
   lint:
     if: inputs.run_lint
-    name: Lint
+    name: 🧹 Lint
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout code

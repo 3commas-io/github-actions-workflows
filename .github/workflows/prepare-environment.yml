@@ -36,7 +36,7 @@ on:
 
 jobs:
   prepare:
-    name: Environment
+    name: 🌍 Environment
     runs-on: ${{ startsWith(github.ref, 'refs/tags/v') && 'sb-production-huge-arm-arc' || 'sb-staging-huge-arm-arc' }}
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
     outputs:
