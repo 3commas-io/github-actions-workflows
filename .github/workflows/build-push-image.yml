@@ -36,6 +36,11 @@ on:
         required: false
         type: string
         default: 'sb-staging-arm-arc'
+      environment:
+        description: 'GitHub environment (staging/production) for secret access'
+        required: false
+        type: string
+        default: ''
       env_file:
         description: 'Path to env file for build args'
         required: false
@@ -56,6 +61,7 @@ jobs:
   build:
     name: 🐳 Build ${{ inputs.service_name }}
     runs-on: ${{ inputs.runner }}
+    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
